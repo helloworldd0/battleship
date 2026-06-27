@@ -12,5 +12,6 @@
         <SolidColorBrush x:Key="ShipBrush" Color="#576574"/>
         <SolidColorBrush x:Key="HitBrush" Color="#c0392b"/>
         <SolidColorBrush x:Key="MissBrush" Color="#74b9ff"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Application.Resources>
 </Application>

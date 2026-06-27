@@ -23,6 +23,8 @@ public class BoardControl : Grid
             new PropertyMetadata(true));
 
     public event Action<int, int>? CellClicked;
+    public event Action<int, int>? CellHovered;
+    public event Action? RightClicked;
 
     public PlayerBoardDto? Board
     {
@@ -78,6 +80,8 @@ public class BoardControl : Grid
             {
                 border.Cursor = Cursors.Hand;
                 border.MouseLeftButtonDown += (_, _) => CellClicked?.Invoke(cell.X, cell.Y);
+                border.MouseEnter += (_, _) => CellHovered?.Invoke(cell.X, cell.Y);
+                border.MouseRightButtonDown += (_, _) => RightClicked?.Invoke();
             }
 
             Grid.SetRow(border, cell.Y);
@@ -96,8 +100,8 @@ public class BoardControl : Grid
             CellState.Empty => (Brush)Application.Current.Resources["WaterBrush"],
             CellState.Ship => (Brush)Application.Current.Resources["ShipBrush"],
             CellState.Miss => (Brush)Application.Current.Resources["MissBrush"],
-            CellState.Hit => (Brush)Application.Current.Resources["HitBrush"],
-            CellState.Sunk => (Brush)Application.Current.Resources["HitBrush"],
+            CellState.Hit => new SolidColorBrush(Color.FromRgb(255, 140, 0)), 
+            CellState.Sunk => new SolidColorBrush(Color.FromRgb(200, 0, 0)),
             _ => (Brush)Application.Current.Resources["WaterBrush"]
         };
     }

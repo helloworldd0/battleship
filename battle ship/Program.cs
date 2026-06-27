@@ -60,24 +60,17 @@ builder.Services.AddSignalR(options =>
 
 builder.Logging.AddConsole();
 
-
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-        policy.AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowAnyOrigin());
-});
-
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    var gameService = scope.ServiceProvider.GetRequiredService<GameService>();
+    await gameService.RestoreSessionsAsync();
 }
 
-app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 

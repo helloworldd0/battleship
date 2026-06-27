@@ -25,6 +25,14 @@ public class GameSession
     public int? CurrentTurnUserId { get; set; }
     public int? WinnerUserId { get; set; }
 
+    public CancellationTokenSource? PlacementTimer { get; set; }
+    public CancellationTokenSource? TurnTimer { get; set; }
+
+    public BotPlayer? Bot { get; set; }
+    public bool IsVsBot => Bot is not null;
+
+    public const int BotUserId = -1;
+
     public int GetOpponentUserId(int userId) =>
         userId == Player1UserId ? Player2UserId : Player1UserId;
 
@@ -59,47 +67,6 @@ public class GameSession
             userId == Player1UserId ? Player2Ready : Player1Ready,
             WinnerUserId
         );
-    }
-
-    public static ShipDto[] GenerateRandomPlacement()
-    {
-        var random = new Random();
-        var requiredLengths = GameConstants.ShipLengths.ToList();
-        var ships = new List<ShipDto>();
-
-        foreach (var length in requiredLengths)
-        {
-            var placed = false;
-            for (var attempt = 0; attempt < 500 && !placed; attempt++)
-            {
-                var isHorizontal = random.Next(2) == 0;
-                var maxX = isHorizontal ? GameConstants.BoardSize - length : GameConstants.BoardSize - 1;
-                var maxY = isHorizontal ? GameConstants.BoardSize - 1 : GameConstants.BoardSize - length;
-                var x = random.Next(maxX + 1);
-                var y = random.Next(maxY + 1);
-
-                var candidate = new ShipDto(x, y, length, isHorizontal);
-                var testShips = ships.Select(s => new Ship
-                {
-                    X = s.X, Y = s.Y, Length = s.Length, IsHorizontal = s.IsHorizontal
-                }).ToList();
-                testShips.Add(new Ship
-                {
-                    X = x, Y = y, Length = length, IsHorizontal = isHorizontal
-                });
-
-                if (GameRules.ValidatePlacement(testShips).IsValid)
-                {
-                    ships.Add(candidate);
-                    placed = true;
-                }
-            }
-
-            if (!placed)
-                return GenerateRandomPlacement();
-        }
-
-        return ships.ToArray();
     }
 
     public static string SerializeShips(IEnumerable<ShipDto> ships) =>

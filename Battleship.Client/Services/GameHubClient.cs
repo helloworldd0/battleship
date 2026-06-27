@@ -8,6 +8,10 @@ public class GameHubClient : IAsyncDisposable
 {
     private HubConnection? _connection;
     private string? _token;
+    private Guid? _currentGameId;
+
+    public void SetCurrentGame(Guid gameId) => _currentGameId = gameId;
+    public void ClearCurrentGame() => _currentGameId = null;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -22,6 +26,12 @@ public class GameHubClient : IAsyncDisposable
     public event Action<int?>? OnTurnChanged;
     public event Action<int?>? OnGameOver;
     public event Action<GameStateDto>? OnGameState;
+    public event Action<int>? OnRematchRequested;
+    public event Action? OnRematchAccepted;
+    public event Action<int>? OnRematchDeclined;
+    public event Action<int?>? OnPlacementTimeout;
+    public event Action<int?>? OnTurnTimeout;
+    public event Func<string?, Task>? Reconnected;
 
     public async Task ConnectAsync(string token)
     {
@@ -54,6 +64,8 @@ public class GameHubClient : IAsyncDisposable
         }
     }
 
+    public Task JoinBotGameAsync() => InvokeAsync("JoinBotGame");
+
     private void RegisterHandlers()
     {
         _connection!.On<string>("OnError", msg => OnError?.Invoke(msg));
@@ -67,10 +79,15 @@ public class GameHubClient : IAsyncDisposable
         _connection.On<int?>("OnTurnChanged", id => OnTurnChanged?.Invoke(id));
         _connection.On<int?>("OnGameOver", id => OnGameOver?.Invoke(id));
         _connection.On<GameStateDto>("OnGameState", state => OnGameState?.Invoke(state));
-
+        _connection.On<int>("OnRematchRequested", id => OnRematchRequested?.Invoke(id));
+        _connection.On<int>("OnRematchDeclined", id => OnRematchDeclined?.Invoke(id));
+        _connection.On<int>("OnPlacementTimeout", id => OnPlacementTimeout?.Invoke(id));
+        _connection.On<int?>("OnTurnTimeout", id => OnTurnTimeout?.Invoke(id));
         _connection.Reconnected += async (_) =>
         {
             await WaitForConnectionAsync();
+            if (_currentGameId.HasValue)
+                await InvokeAsync("GetGameState", _currentGameId.Value);
         };
 
         _connection.Closed += async (error) =>
@@ -83,13 +100,6 @@ public class GameHubClient : IAsyncDisposable
             Console.WriteLine("HUB RECONNECTING: " + error);
             return Task.CompletedTask;
         };
-
-        _connection.Reconnected += (id) =>
-        {
-            Console.WriteLine("HUB RECONNECTED");
-            return Task.CompletedTask;
-        };
-
     }
 
     private async Task InvokeAsync(string method, params object?[] args)
@@ -118,8 +128,6 @@ public class GameHubClient : IAsyncDisposable
         }
     }
 
-
-
     public Task JoinQueueAsync() => InvokeAsync("JoinQueue");
     public Task LeaveQueueAsync() => InvokeAsync("LeaveQueue");
     public Task PlaceRandomShipsAsync(Guid gameId) => InvokeAsync("PlaceRandomShips", gameId);
@@ -127,12 +135,12 @@ public class GameHubClient : IAsyncDisposable
     public Task ShootAsync(Guid gameId, int x, int y) => InvokeAsync("Shoot", gameId, x, y);
     public Task SurrenderAsync(Guid gameId) => InvokeAsync("Surrender", gameId);
     public Task GetGameStateAsync(Guid gameId) => InvokeAsync("GetGameState", gameId);
+    public Task RequestRematchAsync(Guid gameId) => InvokeAsync("RequestRematch", gameId);
+    public Task DeclineRematchAsync(Guid gameId) => InvokeAsync("DeclineRematch", gameId);
 
     public async ValueTask DisposeAsync()
     {
         if (_connection is not null)
             await _connection.DisposeAsync();
     }
-
-
 }

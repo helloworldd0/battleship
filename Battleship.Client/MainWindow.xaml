@@ -13,155 +13,225 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock x:Name="StatusText"
-                   Grid.Row="0"
-                   Foreground="{StaticResource TextBrush}"
-                   FontSize="16"
-                   Margin="0,0,0,12"
-                   Text="Добро пожаловать"/>
-
-        <!-- Login -->
-        <Border x:Name="LoginPanel"
-                Grid.Row="1"
-                Background="{StaticResource PanelBrush}"
-                CornerRadius="8"
-                Padding="32"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Width="360">
-            <StackPanel>
-                <TextBlock Text="Вход / Регистрация"
-                           Foreground="{StaticResource TextBrush}"
-                           FontSize="22"
-                           FontWeight="Bold"
-                           Margin="0,0,0,16"/>
-
-                <TextBlock Text="Имя пользователя" Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
-                <TextBox x:Name="UsernameBox" Height="32" Margin="0,0,0,12"/>
-
-                <TextBlock Text="Пароль" Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
-                <PasswordBox x:Name="PasswordBox" Height="32" Margin="0,0,0,16"/>
-
-                <TextBlock x:Name="LoginErrorText"
-                           Foreground="{StaticResource HighlightBrush}"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,12"
-                           Visibility="Collapsed"/>
-
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button Content="Войти"
-                            Width="120" Height="36" Margin="0,0,8,0"
-                            Click="Login_Click"/>
-                    <Button Content="Регистрация"
-                            Width="120" Height="36"
-                            Click="Register_Click"/>
-                </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <!-- Lobby -->
-        <Border x:Name="LobbyPanel"
-                Grid.Row="1"
-                Background="{StaticResource PanelBrush}"
-                CornerRadius="8"
-                Padding="32"
-                Visibility="Collapsed">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock x:Name="WelcomeText"
-                           Foreground="{StaticResource TextBrush}"
-                           FontSize="20"
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,24"/>
-
-                <Button x:Name="FindGameButton"
-                        Content="Найти игру"
-                        Width="200" Height="40"
-                        FontSize="16"
-                        Click="FindGame_Click"/>
-
-                <Button Content="Выйти из аккаунта"
-                        Width="200" Height="32"
-                        Margin="0,16,0,0"
-                        Click="Logout_Click"/>
-            </StackPanel>
-        </Border>
-
-        <!-- Placement -->
-        <Grid x:Name="PlacementPanel" Grid.Row="1" Visibility="Collapsed">
+        <Grid Grid.Row="0" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="280"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                <TextBlock Text="Ваше поле — расставьте корабли"
-                           Foreground="{StaticResource TextBrush}"
-                           FontSize="18"
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,8"/>
-                <controls:BoardControl x:Name="PlacementBoard"
-                                       Width="400" Height="400"
-                                       ShowShips="True"
-                                       IsInteractive="False"/>
-            </StackPanel>
+            <TextBlock Grid.Column="0"
+               Text="{Binding StatusText}"
+               Foreground="{StaticResource TextBrush}"
+               FontSize="16"
+               VerticalAlignment="Center"/>
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
-                <TextBlock x:Name="PlacementInfoText"
-                           Foreground="{StaticResource TextBrush}"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,16"/>
+            <TextBlock Grid.Column="1"
+               Text="{Binding TimerText}"
+               Foreground="{StaticResource HighlightBrush}"
+               FontSize="18"
+               FontWeight="Bold"
+               VerticalAlignment="Center"/>
+        </Grid>
+
+        <Viewbox Grid.Row="1"
+         Visibility="{Binding LoginVisible, Converter={StaticResource BoolToVisibility}}"
+         Stretch="Uniform"
+         MaxWidth="480"
+         VerticalAlignment="Center" HorizontalAlignment="Center">
+            <Border Background="{StaticResource PanelBrush}"
+            CornerRadius="8" Padding="32" Width="360">
+                <StackPanel>
+                    <TextBlock Text="Вход / Регистрация"
+                       Foreground="{StaticResource TextBrush}"
+                       FontSize="22" FontWeight="Bold" Margin="0,0,0,16"/>
+
+                    <TextBlock Text="Имя пользователя"
+                       Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
+                    <TextBox Height="32" Margin="0,0,0,12" Padding="0,6,0,0"
+                     Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"/>
+
+                    <TextBlock Text="Пароль"
+                       Foreground="{StaticResource TextBrush}" Margin="0,0,0,4"/>
+                    <PasswordBox x:Name="PasswordBox" Height="32" Margin="0,0,0,16" Padding="0,6,0,0"
+                         PasswordChanged="PasswordBox_PasswordChanged"/>
+
+                    <TextBlock Text="{Binding LoginError}"
+                       Foreground="{StaticResource HighlightBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,12"
+                       Visibility="{Binding LoginErrorVisible, Converter={StaticResource BoolToVisibility}}"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="Войти"
+                        Width="120" Height="36" Margin="0,0,8,0"
+                        Command="{Binding LoginCommand}"/>
+                        <Button Content="Регистрация"
+                        Width="120" Height="36"
+                        Command="{Binding RegisterCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Viewbox>
+
+        <Viewbox Grid.Row="1"
+         Visibility="{Binding LobbyVisible, Converter={StaticResource BoolToVisibility}}"
+         Stretch="Uniform"
+         MaxWidth="400"
+         VerticalAlignment="Center" HorizontalAlignment="Center">
+            <Border Background="{StaticResource PanelBrush}"
+            CornerRadius="8" Padding="48" Width="360">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding WelcomeText}"
+                       Foreground="{StaticResource TextBrush}"
+                       FontSize="20" HorizontalAlignment="Center" Margin="0,0,0,24"/>
+
+                    <Button Content="Найти игру"
+                    Width="200" Height="40" FontSize="16"
+                    IsEnabled="{Binding FindGameEnabled}"
+                    Command="{Binding FindGameCommand}"/>
+
+                    <Button Content="Отменить поиск"
+                    Width="200" Height="32" Margin="0,10,0,0"
+                    Visibility="{Binding CancelSearchVisible, Converter={StaticResource BoolToVisibility}}"
+                    Command="{Binding CancelSearchCommand}"/>
+
+                    <Button Content="Играть с ботом"
+                    Width="200" Height="40" FontSize="16"
+                    Margin="0,12,0,0"
+                    Command="{Binding PlayVsBotCommand}"/>  
+
+                    <Button Content="Выйти из аккаунта"
+                    Width="200" Height="32" Margin="0,18,0,0"
+                    Command="{Binding LogoutCommand}"/>
+                </StackPanel>
+            </Border>
+        </Viewbox>
+       
+        <Grid Grid.Row="1"
+              Visibility="{Binding PlacementVisible, Converter={StaticResource BoolToVisibility}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <Viewbox Grid.Column="0" Stretch="Uniform" Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="Ваше поле — расставьте корабли"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                    <controls:BoardControl x:Name="PlacementBoard"
+                                           Width="400" Height="400"
+                                           ShowShips="True" IsInteractive="True"
+                                           Board="{Binding PlacementBoard}"/>
+                </StackPanel>
+            </Viewbox>
+
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Margin="16,0,24,0">
+                <TextBlock Text="{Binding PlacementInfo}"
+           Foreground="{StaticResource TextBrush}"
+           TextWrapping="Wrap"
+           Margin="0,0,0,12"/>
+
+                <TextBlock Text="{Binding CurrentShipInfo}"
+           Foreground="{StaticResource HighlightBrush}"
+           FontWeight="Bold"
+           TextWrapping="Wrap"
+           Margin="0,0,0,24"/>
+
+                <TextBlock Text="ПКМ — повернуть корабль"
+           Foreground="{StaticResource TextBrush}"
+           FontSize="12"
+           Margin="0,0,0,24"/>
+
+                <Button Content="Расставить вручную"
+                Height="40" Margin="0,0,0,12"
+                Command="{Binding ManualPlacementCommand}"/>    
+
 
                 <Button Content="Случайная расстановка"
-                        Height="36" Margin="0,0,0,8"
-                        Click="RandomPlacement_Click"/>
+                        Height="40" Margin="0,0,0,12"
+                        Command="{Binding RandomPlacementCommand}"/>
 
-                <Button x:Name="ConfirmPlacementButton"
-                        Content="Подтвердить расстановку"
-                        Height="36"
-                        IsEnabled="False"
-                        Click="ConfirmPlacement_Click"/>
+                <Button Content="Подтвердить расстановку"
+                        Height="40"
+                        IsEnabled="{Binding ConfirmPlacementEnabled}"
+                        Command="{Binding ConfirmPlacementCommand}"/>
             </StackPanel>
         </Grid>
 
-        <!-- Battle -->
-        <Grid x:Name="BattlePanel" Grid.Row="1" Visibility="Collapsed">
+        <Grid Grid.Row="1"
+              Visibility="{Binding BattleVisible, Converter={StaticResource BoolToVisibility}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                <TextBlock Text="Ваш флот"
-                           Foreground="{StaticResource TextBrush}"
-                           FontSize="16"
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,8"/>
-                <controls:BoardControl x:Name="MyBoard"
-                                       Width="340" Height="340"
-                                       ShowShips="True"
-                                       IsInteractive="False"/>
-            </StackPanel>
+            <Viewbox Grid.Row="0" Grid.Column="0" Stretch="Uniform" Margin="8">
+                <StackPanel>
+                    <TextBlock Text="Ваш флот"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                    <controls:BoardControl x:Name="MyBoard"
+                                           Width="340" Height="340"
+                                           ShowShips="True" IsInteractive="False"
+                                           Board="{Binding MyBoard}"/>
+                </StackPanel>
+            </Viewbox>
 
-            <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                <TextBlock Text="Поле противника"
-                           Foreground="{StaticResource TextBrush}"
-                           FontSize="16"
-                           HorizontalAlignment="Center"
-                           Margin="0,0,0,8"/>
-                <controls:BoardControl x:Name="EnemyBoard"
-                                       Width="340" Height="340"
-                                       ShowShips="False"
-                                       IsInteractive="True"/>
-            </StackPanel>
+            <Viewbox Grid.Row="0" Grid.Column="1" Stretch="Uniform" Margin="8">
+                <StackPanel>
+                    <TextBlock Text="Поле противника"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                    <controls:BoardControl x:Name="EnemyBoard"
+                                           Width="340" Height="340"
+                                           ShowShips="False"
+                                           IsInteractive="{Binding EnemyBoardInteractive}"
+                                           Board="{Binding EnemyBoard}"/>
+                </StackPanel>
+            </Viewbox>
 
-            <StackPanel Grid.Column="1"
-                        VerticalAlignment="Bottom"
-                        HorizontalAlignment="Center"
-                        Margin="0,0,0,8">
-                <Button Content="Сдаться"
-                        Width="140" Height="32"
-                        Click="Surrender_Click"/>
-            </StackPanel>
+            <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                    Content="Сдаться"
+                    Width="140" Height="36"
+                    HorizontalAlignment="Center"
+                    Margin="0,8,0,0"
+                    Command="{Binding SurrenderCommand}"/>
+
+            <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
+                Visibility="{Binding GameOverVisible, Converter={StaticResource BoolToVisibility}}"
+                Background="#CC000000"
+                CornerRadius="8">   
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding GameOverText}"
+                   Foreground="White"
+                   FontSize="48" FontWeight="Bold"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,16"/>
+
+                    <TextBlock Text="{Binding RematchStatusText}"
+                   Foreground="White"
+                   FontSize="18"
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,32"/>
+
+                    <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    IsEnabled="{Binding RematchButtonsEnabled}">
+                        <Button Content="Реванш!"
+                    Width="140" Height="40" Margin="0,0,16,0"
+                    Command="{Binding RematchCommand}"/>
+                        <Button Content="В лобби"
+                    Width="140" Height="40"
+                    Command="{Binding DeclineRematchCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>

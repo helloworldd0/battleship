@@ -19,7 +19,123 @@ public class GameService
         _scopeFactory = scopeFactory;
     }
 
-    public GameSession CreateSession(QueuedPlayer p1, QueuedPlayer p2)
+    public async Task RestoreSessionsAsync()
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var activeGames = await db.Games
+            .Where(g => g.Status != GameStatus.Finished)
+            .Include(g => g.Players)
+            .ThenInclude(p => p.User)
+            .ToListAsync();
+
+        foreach (var game in activeGames)
+        {
+            if (game.Players.Count != 2)
+                continue;
+
+            var players = game.Players.OrderBy(p => p.Id).ToList();
+            var p1 = players[0];
+            var p2 = players[1];
+
+
+            var session = new GameSession
+            {
+                GameId = game.Id,
+                Player1UserId = p1.UserId,
+                Player2UserId = p2.UserId,
+                Player1Username = p1.User.Username,
+                Player2Username = p2.User.Username,
+                Status = game.Status,
+                CurrentTurnUserId = game.CurrentTurnUserId,
+                WinnerUserId = game.WinnerUserId,
+                Player1Ready = p1.IsReady,
+                Player2Ready = p2.IsReady
+            };
+
+            var p1Ships = GameSession.DeserializeShips(p1.BoardJson);
+            var p2Ships = GameSession.DeserializeShips(p2.BoardJson);
+
+            if (p1Ships.Length > 0)
+                session.Player1Board.PlaceShips(p1Ships);
+
+            if (p2Ships.Length > 0)
+                session.Player2Board.PlaceShips(p2Ships);
+
+            var p1Shots = JsonSerializer.Deserialize<List<CoordinateDto>>(p1.ShotsJson) ?? [];
+            var p2Shots = JsonSerializer.Deserialize<List<CoordinateDto>>(p2.ShotsJson) ?? [];
+
+            foreach (var s in p1Shots)
+                session.Player2Board.Shoot(s.X, s.Y);
+
+            foreach (var s in p2Shots)
+                session.Player1Board.Shoot(s.X, s.Y);
+
+            _sessions[session.GameId] = session;
+        }
+    }
+
+    public GameSession? GetOrRestoreSessionByUserId(int userId)
+    {
+        var session = GetSessionByUserId(userId);
+        if (session != null)
+            return session;
+
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var game = db.Games
+            .Include(g => g.Players)
+            .ThenInclude(p => p.User)
+            .FirstOrDefault(g => g.Status != GameStatus.Finished &&
+                                 g.Players.Any(p => p.UserId == userId));
+
+        if (game is null || game.Players.Count != 2)
+            return null;
+
+        var players = game.Players.OrderBy(p => p.Id).ToList();
+        var p1 = players[0];
+        var p2 = players[1];
+
+
+        var restored = new GameSession
+        {
+            GameId = game.Id,
+            Player1UserId = p1.UserId,
+            Player2UserId = p2.UserId,
+            Player1Username = p1.User.Username,
+            Player2Username = p2.User.Username,
+            Status = game.Status,
+            CurrentTurnUserId = game.CurrentTurnUserId,
+            WinnerUserId = game.WinnerUserId,
+            Player1Ready = p1.IsReady,
+            Player2Ready = p2.IsReady
+        };
+
+        var p1Ships = GameSession.DeserializeShips(p1.BoardJson);
+        var p2Ships = GameSession.DeserializeShips(p2.BoardJson);
+
+        if (p1Ships.Length > 0)
+            restored.Player1Board.PlaceShips(p1Ships);
+
+        if (p2Ships.Length > 0)
+            restored.Player2Board.PlaceShips(p2Ships);
+
+        var p1Shots = JsonSerializer.Deserialize<List<CoordinateDto>>(p1.ShotsJson) ?? [];
+        var p2Shots = JsonSerializer.Deserialize<List<CoordinateDto>>(p2.ShotsJson) ?? [];
+
+        foreach (var s in p1Shots)
+            restored.Player2Board.Shoot(s.X, s.Y);
+
+        foreach (var s in p2Shots)
+            restored.Player1Board.Shoot(s.X, s.Y);
+
+        _sessions[restored.GameId] = restored;
+        return restored;
+    }
+
+    public async Task<GameSession> CreateSession(QueuedPlayer p1, QueuedPlayer p2)
     {
         var gameId = Guid.NewGuid();
         var session = new GameSession
@@ -34,7 +150,7 @@ public class GameService
         };
 
         _sessions[gameId] = session;
-        _ = PersistNewGameAsync(session);
+        await PersistNewGameAsync(session);
         return session;
     }
 
@@ -44,7 +160,7 @@ public class GameService
     public GameSession? GetSessionByUserId(int userId) =>
         _sessions.Values.FirstOrDefault(s => s.IsPlayerInGame(userId));
 
-    public (bool Success, string? Error) PlaceShips(GameSession session, int userId, ShipDto[] ships)
+    public async Task<(bool Success, string? Error)> PlaceShips(GameSession session, int userId, ShipDto[] ships)
     {
         if (session.Status != GameStatus.WaitingPlacement)
             return (false, "Расстановка уже завершена.");
@@ -59,7 +175,8 @@ public class GameService
         else
             session.Player2Ready = true;
 
-        _ = PersistBoardAsync(session, userId, ships);
+        await PersistBoardAsync(session, userId, ships);
+
 
         if (session.Player1Ready && session.Player2Ready)
         {
@@ -71,7 +188,7 @@ public class GameService
         return (true, null);
     }
 
-    public (bool Success, ShotResultDto? Result, string? Error) Shoot(GameSession session, int userId, int x, int y)
+    public async Task<(bool Success, ShotResultDto? Result, string? Error)> Shoot(GameSession session, int userId, int x, int y)
     {
         if (session.Status != GameStatus.InProgress)
             return (false, null, "Игра ещё не началась или уже завершена.");
@@ -88,6 +205,8 @@ public class GameService
                 : "Некорректные координаты.");
 
         var dto = new ShotResultDto(x, y, resultType, sunkShip?.ToDto());
+
+        await PersistShotAsync(session, userId, x, y);
 
         if (enemyBoard.AllShipsSunk)
         {
@@ -115,63 +234,130 @@ public class GameService
 
     private async Task PersistNewGameAsync(GameSession session)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var game = new Models.Game
+        try
         {
-            Id = session.GameId,
-            Status = GameStatus.WaitingPlacement
-        };
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        db.Games.Add(game);
-        db.GamePlayers.AddRange(
-            new GamePlayer { GameId = session.GameId, UserId = session.Player1UserId },
-            new GamePlayer { GameId = session.GameId, UserId = session.Player2UserId }
-        );
+            var game = new Models.Game
+            {
+                Id = session.GameId,
+                Status = GameStatus.WaitingPlacement
+            };
 
-        await db.SaveChangesAsync();
+            db.Games.Add(game);
+            if (session.Player1UserId != GameSession.BotUserId)
+                db.GamePlayers.Add(new GamePlayer { GameId = session.GameId, UserId = session.Player1UserId });
+
+            if (session.Player2UserId != GameSession.BotUserId)
+                db.GamePlayers.Add(new GamePlayer { GameId = session.GameId, UserId = session.Player2UserId });
+
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB ERROR] PersistNewGameAsync: {ex}");
+            throw;
+        }
     }
 
     private async Task PersistBoardAsync(GameSession session, int userId, ShipDto[] ships)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        if (userId == GameSession.BotUserId) return;
 
-        var player = await db.GamePlayers
-            .FirstOrDefaultAsync(gp => gp.GameId == session.GameId && gp.UserId == userId);
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        if (player is null) return;
+            var player = await db.GamePlayers
+                .FirstOrDefaultAsync(gp => gp.GameId == session.GameId && gp.UserId == userId);
 
-        player.BoardJson = GameSession.SerializeShips(ships);
-        player.IsReady = true;
-        await db.SaveChangesAsync();
+            if (player is null) return;
+
+            player.BoardJson = GameSession.SerializeShips(ships);
+            player.IsReady = true;
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB ERROR] PersistBoardAsync: {ex}");
+            throw;
+        }
+    }
+
+
+    private async Task PersistShotAsync(GameSession session, int userId, int x, int y)
+    {
+        if (userId == GameSession.BotUserId) return;
+
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var player = await db.GamePlayers
+                .FirstOrDefaultAsync(gp => gp.GameId == session.GameId && gp.UserId == userId);
+
+            if (player is null) return;
+
+            var shots = JsonSerializer.Deserialize<List<CoordinateDto>>(player.ShotsJson) ?? [];
+            shots.Add(new CoordinateDto(x, y));
+            player.ShotsJson = JsonSerializer.Serialize(shots);
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB ERROR] PersistShotAsync: {ex}");
+            throw;
+        }
     }
 
     private async Task UpdateGameStatusAsync(GameSession session)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var game = await db.Games.FindAsync(session.GameId);
-        if (game is null) return;
+            var game = await db.Games.FindAsync(session.GameId);
+            if (game is null) return;
 
-        game.Status = session.Status;
-        game.CurrentTurnUserId = session.CurrentTurnUserId;
-        await db.SaveChangesAsync();
+            game.Status = session.Status;
+            game.CurrentTurnUserId = session.CurrentTurnUserId;
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB ERROR] UpdateGameStatusAsync: {ex}");
+            throw;
+        }
     }
 
-    private async Task FinishGameAsync(GameSession session)
+    public async Task FinishGameAsync(GameSession session)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var game = await db.Games.FindAsync(session.GameId);
-        if (game is null) return;
+            var game = await db.Games.FindAsync(session.GameId);
+            if (game is null) return;
 
-        game.Status = GameStatus.Finished;
-        game.WinnerUserId = session.WinnerUserId;
-        game.FinishedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
+            game.Status = GameStatus.Finished;
+            game.WinnerUserId = session.WinnerUserId;
+            game.FinishedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DB ERROR] FinishGameAsync: {ex}");
+            throw;
+        }
     }
 }

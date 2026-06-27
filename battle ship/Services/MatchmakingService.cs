@@ -10,8 +10,13 @@ public class MatchmakingService
     private readonly ConcurrentQueue<QueuedPlayer> _queue = new();
     private readonly object _lock = new();
 
-    public bool IsInQueue(string connectionId) =>
-        _queue.Any(p => p.ConnectionId == connectionId);
+    public bool IsInQueue(string connectionId)
+    {
+        lock (_lock)
+        {
+            return _queue.Any(p => p.ConnectionId == connectionId);
+        }
+    }
 
     public void Enqueue(QueuedPlayer player)
     {
